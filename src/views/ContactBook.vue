@@ -6,34 +6,57 @@
 
         <div class="col-md-10 mt-2 d-flex align-items-center">
             <div class="btn-group btn-group-toggle mr-3" data-toggle="buttons">
-            <label class="btn btn-outline-secondary btn-sm" :class="{ active: filterFavorite === 'all' }">
-                <input type="radio" v-model="filterFavorite" value="all"> Tất cả
-            </label>
-            <label class="btn btn-outline-primary btn-sm" :class="{ active: filterFavorite === 'yes' }">
-                <input type="radio" v-model="filterFavorite" value="yes"> <i class="fas fa-star text-warning"></i> Yêu thích
-            </label>
-            <label class="btn btn-outline-dark btn-sm" :class="{ active: filterFavorite === 'no' }">
-                <input type="radio" v-model="filterFavorite" value="no"> Không yêu thích
-            </label>
+                <label class="btn btn-outline-secondary btn-sm" :class="{ active: filterFavorite === 'all' }">
+                    <input type="radio" v-model="filterFavorite" value="all"> Tất cả
+                </label>
+                <label class="btn btn-outline-primary btn-sm" :class="{ active: filterFavorite === 'yes' }">
+                    <input type="radio" v-model="filterFavorite" value="yes"> 
+                    <i class="fas fa-star text-warning"></i> Yêu thích
+                </label>
+                <label class="btn btn-outline-dark btn-sm" :class="{ active: filterFavorite === 'no' }">
+                    <input type="radio" v-model="filterFavorite" value="no"> Không yêu thích
+                </label>
+            </div>
+
+            <button class="btn btn-outline-info btn-sm" @click="toggleSort">
+                <i class="fas" :class="sortIcon"></i> 
+                Sắp xếp {{ sortText }}
+            </button>
         </div>
 
-        <button class="btn btn-outline-info btn-sm" @click="toggleSort">
-            <i class="fas" :class="sortIcon"></i> 
-            Sắp xếp {{ sortText }}
-        </button>
-</div>
         <div class="mt-3 col-md-6">
             <h4>
                 Danh bạ
                 <i class="fas fa-address-book"></i>
             </h4>
+            
             <ContactList
                 v-if="filteredContactsCount > 0"
-                :contacts="filteredContacts"
+                :contacts="paginatedContacts"
                 v-model:activeIndex="activeIndex"
                 @toggle:favorite="toggleFavorite" 
             />
             <p v-else>Không có liên hệ nào.</p>
+
+            <div v-if="totalPages > 1" class="mt-3 d-flex justify-content-center align-items-center">
+                <button 
+                    class="btn btn-outline-secondary btn-sm mr-2" 
+                    :disabled="currentPage === 1"
+                    @click="currentPage--"
+                >
+                    <i class="fas fa-chevron-left"></i> Trước
+                </button>
+                
+                <span>Trang {{ currentPage }} / {{ totalPages }}</span>
+                
+                <button 
+                    class="btn btn-outline-secondary btn-sm ml-2" 
+                    :disabled="currentPage === totalPages"
+                    @click="currentPage++"
+                >
+                    Sau <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
 
             <div class="mt-3 row justify-content-around align-items-center">
                 <button class="btn btn-sm btn-primary" @click="refreshList()">
@@ -92,53 +115,37 @@ export default {
             searchText: "",
             filterFavorite: "all", 
             sortOrder: "none",
+            currentPage: 1,
+            pageSize: 5,
         };
     },
     watch: {
         searchText() {
             this.activeIndex = -1;
+            this.currentPage = 1; 
         },
         filterFavorite() {
             this.activeIndex = -1;
+            this.currentPage = 1; 
+        },
+        sortOrder() {
+            this.activeIndex = -1;
+            this.currentPage = 1; 
         }
     },
     computed: {
         contactStrings() {
             return this.contacts.map((contact) => {
                 const { name, email, address, phone } = contact;
-                return [name, email, address, phone].join("");
+                return [name, email, address, phone].join("").toLowerCase();
             });
         },
         filteredContacts() {
             let result = this.contacts;
-            
-            if (this.searchText) {
-                result = result.filter((contact, index) =>
-                    this.contactStrings[index].toLowerCase().includes(this.searchText.toLowerCase())
-                );
-            }
-
-            if (this.filterFavorite === "yes") {
-                return result.filter(contact => contact.favorite === true);
-            } else if (this.filterFavorite === "no") {
-                return result.filter(contact => !contact.favorite);
-            }
-
-            return result;
-        },
-        activeContact() {
-            if (this.activeIndex < 0) return null;
-            return this.filteredContacts[this.activeIndex];
-        },
-        filteredContactsCount() {
-            return this.filteredContacts.length;
-        },
-        filteredContacts() {
-            let result = this.contacts;
 
             if (this.searchText) {
                 result = result.filter((contact, index) =>
-                    this.contactStrings[index].toLowerCase().includes(this.searchText.toLowerCase())
+                    this.contactStrings[index].includes(this.searchText.toLowerCase())
                 );
             }
 
@@ -152,15 +159,28 @@ export default {
                 result = [...result].sort((a, b) => {
                     const nameA = a.name.toLowerCase();
                     const nameB = b.name.toLowerCase();
-                    if (this.sortOrder === "asc") {
-                        return nameA.localeCompare(nameB);
-                    } else {
-                        return nameB.localeCompare(nameA);
-                    }
+                    return this.sortOrder === "asc" 
+                        ? nameA.localeCompare(nameB) 
+                        : nameB.localeCompare(nameA);
                 });
             }
 
             return result;
+        },
+        paginatedContacts() {
+            const start = (this.currentPage - 1) * this.pageSize;
+            const end = start + this.pageSize;
+            return this.filteredContacts.slice(start, end);
+        },
+        activeContact() {
+            if (this.activeIndex < 0) return null;
+            return this.paginatedContacts[this.activeIndex];
+        },
+        filteredContactsCount() {
+            return this.filteredContacts.length;
+        },
+        totalPages() {
+            return Math.ceil(this.filteredContactsCount / this.pageSize);
         },
         sortIcon() {
             if (this.sortOrder === 'asc') return 'fa-sort-alpha-down';
@@ -181,12 +201,11 @@ export default {
                 console.log(error);
             }
         },
-
         refreshList() {
             this.retrieveContacts();
             this.activeIndex = -1;
+            this.currentPage = 1;
         },
-
         async removeAllContacts() {
             if (confirm("Bạn muốn xóa tất cả Liên hệ?")) {
                 try {
@@ -201,21 +220,15 @@ export default {
             try {
                 const updatedFavorite = !contact.favorite;
                 await ContactService.update(contact._id, {
-                favorite: updatedFavorite,
-            });
-            contact.favorite = updatedFavorite;
-        
+                    favorite: updatedFavorite,
+                });
+                contact.favorite = updatedFavorite;
             } catch (error) {
                 console.log("Lỗi khi cập nhật trạng thái yêu thích:", error);
-                alert("Không thể cập nhật trạng thái yêu thích.");
             }
         },
         toggleSort() {
-            if (this.sortOrder === 'none' || this.sortOrder === 'desc') {
-                this.sortOrder = 'asc';
-            } else {
-                this.sortOrder = 'desc';
-            }
+            this.sortOrder = (this.sortOrder === 'none' || this.sortOrder === 'desc') ? 'asc' : 'desc';
             this.activeIndex = -1; 
         },
         goToAddContact() {
