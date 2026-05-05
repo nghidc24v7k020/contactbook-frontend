@@ -1,11 +1,23 @@
 import { createWebHistory, createRouter } from "vue-router";
 import ContactBook from "@/views/ContactBook.vue";
-
+import Login from "@/views/Login.vue";
 const routes = [
+    {
+        path: "/login",
+        name: "login",
+        component: Login,
+    },
     {
         path: "/",
         name: "contactbook",
-        component: ContactBook,
+        component: () => import("@/views/ContactBook.vue"),
+        beforeEnter: (to, from, next) => {
+            if (!localStorage.getItem("userToken")) {
+                next({ name: "login" });
+            } else {
+                next();
+            }
+        }
     },
     {
         path: "/:pathMatch(.*)*",
