@@ -4,6 +4,24 @@
             <InputSearch v-model="searchText" />
         </div>
 
+        <div class="col-md-10 mt-2 d-flex align-items-center">
+            <div class="btn-group btn-group-toggle mr-3" data-toggle="buttons">
+            <label class="btn btn-outline-secondary btn-sm" :class="{ active: filterFavorite === 'all' }">
+                <input type="radio" v-model="filterFavorite" value="all"> Tất cả
+            </label>
+            <label class="btn btn-outline-primary btn-sm" :class="{ active: filterFavorite === 'yes' }">
+                <input type="radio" v-model="filterFavorite" value="yes"> <i class="fas fa-star text-warning"></i> Yêu thích
+            </label>
+            <label class="btn btn-outline-dark btn-sm" :class="{ active: filterFavorite === 'no' }">
+                <input type="radio" v-model="filterFavorite" value="no"> Không yêu thích
+            </label>
+        </div>
+
+        <button class="btn btn-outline-info btn-sm" @click="toggleSort">
+            <i class="fas" :class="sortIcon"></i> 
+            Sắp xếp {{ sortText }}
+        </button>
+</div>
         <div class="mt-3 col-md-6">
             <h4>
                 Danh bạ
@@ -13,6 +31,7 @@
                 v-if="filteredContactsCount > 0"
                 :contacts="filteredContacts"
                 v-model:activeIndex="activeIndex"
+                @toggle:favorite="toggleFavorite" 
             />
             <p v-else>Không có liên hệ nào.</p>
 
@@ -40,15 +59,15 @@
                 <ContactCard :contact="activeContact" />
 
                 <router-link
-                :to="{
-                    name: 'contact.edit',
-                    params: { id: activeContact._id },
-                }"
->
-    <span class="mt-2 badge badge-warning text-dark">
-        <i class="fas fa-edit"></i> Hiệu chỉnh
-    </span>
-</router-link>
+                    :to="{
+                        name: 'contact.edit',
+                        params: { id: activeContact._id },
+                    }"
+                >
+                    <span class="mt-2 badge badge-warning text-dark">
+                        <i class="fas fa-edit"></i> Hiệu chỉnh
+                    </span>
+                </router-link>
             </div>
         </div>
     </div>
@@ -71,12 +90,17 @@ export default {
             contacts: [],
             activeIndex: -1,
             searchText: "",
+            filterFavorite: "all", 
+            sortOrder: "none",
         };
     },
     watch: {
         searchText() {
             this.activeIndex = -1;
         },
+        filterFavorite() {
+            this.activeIndex = -1;
+        }
     },
     computed: {
         contactStrings() {
@@ -86,10 +110,21 @@ export default {
             });
         },
         filteredContacts() {
-            if (!this.searchText) return this.contacts;
-            return this.contacts.filter((_contact, index) =>
-                this.contactStrings[index].includes(this.searchText)
-            );
+            let result = this.contacts;
+            
+            if (this.searchText) {
+                result = result.filter((contact, index) =>
+                    this.contactStrings[index].toLowerCase().includes(this.searchText.toLowerCase())
+                );
+            }
+
+            if (this.filterFavorite === "yes") {
+                return result.filter(contact => contact.favorite === true);
+            } else if (this.filterFavorite === "no") {
+                return result.filter(contact => !contact.favorite);
+            }
+
+            return result;
         },
         activeContact() {
             if (this.activeIndex < 0) return null;
@@ -97,6 +132,45 @@ export default {
         },
         filteredContactsCount() {
             return this.filteredContacts.length;
+        },
+        filteredContacts() {
+            let result = this.contacts;
+
+            if (this.searchText) {
+                result = result.filter((contact, index) =>
+                    this.contactStrings[index].toLowerCase().includes(this.searchText.toLowerCase())
+                );
+            }
+
+            if (this.filterFavorite === "yes") {
+                result = result.filter(contact => contact.favorite === true);
+            } else if (this.filterFavorite === "no") {
+                result = result.filter(contact => !contact.favorite);
+            }
+
+            if (this.sortOrder !== "none") {
+                result = [...result].sort((a, b) => {
+                    const nameA = a.name.toLowerCase();
+                    const nameB = b.name.toLowerCase();
+                    if (this.sortOrder === "asc") {
+                        return nameA.localeCompare(nameB);
+                    } else {
+                        return nameB.localeCompare(nameA);
+                    }
+                });
+            }
+
+            return result;
+        },
+        sortIcon() {
+            if (this.sortOrder === 'asc') return 'fa-sort-alpha-down';
+            if (this.sortOrder === 'desc') return 'fa-sort-alpha-up';
+            return 'fa-sort';
+        },
+        sortText() {
+            if (this.sortOrder === 'asc') return 'A-Z';
+            if (this.sortOrder === 'desc') return 'Z-A';
+            return '';
         },
     },
     methods: {
@@ -123,7 +197,27 @@ export default {
                 }
             }
         },
-
+        async toggleFavorite(contact) {
+            try {
+                const updatedFavorite = !contact.favorite;
+                await ContactService.update(contact._id, {
+                favorite: updatedFavorite,
+            });
+            contact.favorite = updatedFavorite;
+        
+            } catch (error) {
+                console.log("Lỗi khi cập nhật trạng thái yêu thích:", error);
+                alert("Không thể cập nhật trạng thái yêu thích.");
+            }
+        },
+        toggleSort() {
+            if (this.sortOrder === 'none' || this.sortOrder === 'desc') {
+                this.sortOrder = 'asc';
+            } else {
+                this.sortOrder = 'desc';
+            }
+            this.activeIndex = -1; 
+        },
         goToAddContact() {
             this.$router.push({ name: "contact.add" });
         },
@@ -138,5 +232,10 @@ export default {
 .page {
     text-align: left;
     max-width: 750px;
+}
+.btn-group-toggle input[type="radio"] {
+    position: absolute;
+    clip: rect(0, 0, 0, 0);
+    pointer-events: none;
 }
 </style>
